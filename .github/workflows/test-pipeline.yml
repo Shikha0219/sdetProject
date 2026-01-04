@@ -1,0 +1,62 @@
+name: Run Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: windows-latest  # Use Windows runner
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install Google Chrome & ChromeDriver (Windows)
+        run: |
+          # Install Google Chrome and ChromeDriver using Chocolatey
+          choco install googlechrome chromedriver -y
+
+          # Add Google Chrome and ChromeDriver to PATH (Windows specific)
+          $env:Path += ";C:\Program Files (x86)\Google\Chrome\Application"
+          $env:Path += ";C:\tools\chromedriver"
+
+          # Check if Chrome and ChromeDriver are installed correctly
+          & "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe" --version
+          chromedriver --version
+
+      - name: Run UI Tests
+        run: |
+          echo "Running UI tests on test_login.py..."
+          pytest tests/ui_tests/test_login.py --maxfail=5 --disable-warnings
+
+      - name: Run API Tests
+        run: |
+          echo "Running API tests on test_products.py..."
+          pytest tests/api_tests/test_products.py --maxfail=5 --disable-warnings
+
+      - name: Run Load Tests (Locust)
+        run: |
+          echo "Running Load tests..."
+          locust -f tests/performance_tests/load_test_locust.py --host=https://the-internet.herokuapp.com
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test_results/
